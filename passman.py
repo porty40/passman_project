@@ -1,5 +1,6 @@
 # PORTY40 PROPERTY
 import click
+from click.exceptions import UsageError
 import os
 import json
 import base64
@@ -118,7 +119,7 @@ def logout() -> None:
         return
 
     session["logged_in"] = False
-    click.echo(f"User '{session["username"]}' logged out successfully.")
+    click.echo(f"User '{session['username']}' logged out successfully.")
     session["username"] = None
 
 def session():
@@ -132,6 +133,8 @@ def session():
         else:
             try:
                 cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
+            except UsageError as e:
+                click.echo(f"Error: {e}. Please enter a valid command.")
             except SystemExit:
                 pass
 
