@@ -4,6 +4,7 @@ from click.exceptions import UsageError
 import os
 import json
 import base64
+import re
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 #import pyperclip
@@ -11,11 +12,28 @@ from argon2.exceptions import VerifyMismatchError
 
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
-session = {"logged_in": False, "username": None}
+session = {"logged_in": False, "username": ""}
+
+def is_valid_name(username: str) -> bool:
+    rx = r'^([a-zA-Z\d]{2,10})$'
+    return bool(re.fullmatch(rx, username.strip()))
+
+def is_valid_password(password: str) -> bool:
+    rx = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$!%*?&])[A-Za-z\d@#$!%*?&]{8,16}$'
+    return bool(re.fullmatch(rx, password.strip()))
+
+'''
+def sanitize(input: str) -> str:
+    allowed = r'[^a-zA-Z0-9@#$!%*?&]'
+    sanitized = input.strip()
+    sanitized = re.sub(allowed, '', sanitized)
+    return sanitized
+'''
 
 @click.group()
 def cli() -> None:
     """A simple command line password manager."""
+    pass
 
 #password slot operations section
 @cli.command()
@@ -29,7 +47,7 @@ def add_slot(slot_name: str, slot_content: str, password: str) -> None:
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
-def delete_slot(slot_name: str, password: str) -> None:
+def del_slot(slot_name: str, password: str) -> None:
     """Creates a slot in the vault."""
     pass
 
@@ -37,7 +55,7 @@ def delete_slot(slot_name: str, password: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
-def reveal_slot(slot: str, password: str) -> None:
+def show_slot(slot: str, password: str) -> None:
     """Reveals specified slot or copies it to the clipboard."""
     pass
 
@@ -49,10 +67,19 @@ def list_slots(password: str) -> None:
 
 #user/ master password operations section
 @cli.command()
-@click.argument('username') #SHOULD LOG OUT TO CREATE A USER?
+@click.argument('username')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
 def user_set(username: str, password: str) -> None:
     """Sets up a user account (username: master password)."""
+    if session["logged_in"]:
+        click.echo("Log out to create new user account.")
+        return
+    if not is_valid_name(username):
+        click.echo("Invalid username format:\n\tUsername should contain from 2 to 10\n\talphanumerical characters without spaces.")
+        return
+    if not is_valid_password(password):
+        click.echo("Invalid password format:\n\tPassword should contain a minimum of 8 characters,\n\tincluding at least one uppercase letter,\n\tone lowercase letter, one digit,\n\tand one special character (@#$!%*?&).")
+        return
     accounts = 'acc.json'
     try:
         if os.path.exists(accounts):
@@ -76,7 +103,7 @@ def user_set(username: str, password: str) -> None:
 @cli.command()
 @click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
-def mp_reset(old_password: str, new_password: str) -> None:
+def pass_reset(old_password: str, new_password: str) -> None:
     """Resets the master password for the current user."""
     accounts = 'acc.json'
     if not session["logged_in"]:
@@ -108,42 +135,7 @@ def mp_reset(old_password: str, new_password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
-#assistive functions
-def input_valid(input: str) -> bool:
-    pass
-
-def logout() -> None:
-    """Logout"""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
-
-    session["logged_in"] = False
-    click.echo(f"User '{session['username']}' logged out successfully.")
-    session["username"] = None
-
-def session():
-    """Starts the session."""
-    try:
-        while True:
-            cmd = input("('exit' to quit)~# ")
-            if cmd == "exit":
-                if session["logged_in"]:
-                    logout()
-                break
-            else:
-                try:
-                    cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
-                except UsageError as e:
-                    click.echo(f"Error: {e}. Please enter a valid command.")
-                except SystemExit:
-                    pass
-    except KeyboardInterrupt:
-        # Handle Ctrl+C to logout
-        click.echo("\nSession interrupted. Clearing session and exiting......")
-        session["logged_in"] = False
-        session["username"] = None
-        
+#assistive functions (login/logout/session_terminal)
 @cli.command()
 @click.argument('username')
 @click.option('--password', prompt='Enter your password: ', hide_input=True)
@@ -169,5 +161,39 @@ def login(username: str, password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
+@cli.command()
+def logout() -> None:
+    """Logout"""
+    if not session["logged_in"]:
+        click.echo("No user is currently logged in.")
+        return
+
+    session["logged_in"] = False
+    click.echo(f"User '{session['username']}' logged out successfully.")
+    session["username"] = ""
+
+def terminal():
+    """Starts the session."""
+    click.echo("Type 'exit' to quit.")
+    try:
+        while True:
+            cmd = input(f"[{session['username']}]~# ")
+            if cmd == "exit":
+                if session["logged_in"]:
+                    logout()
+                break
+            else:
+                try:
+                    cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
+                except UsageError as e:
+                    click.echo(f"Error: {e}. Please enter a valid command.")
+                except SystemExit:
+                    pass
+    except KeyboardInterrupt:
+        # Handle Ctrl+C to logout
+        click.echo("\nSession interrupted. Clearing session and exiting......")
+        session["logged_in"] = False
+        session["username"] = ""
+
 if __name__ == '__main__':
-    session()
+    terminal()
