@@ -124,20 +124,26 @@ def logout() -> None:
 
 def session():
     """Starts the session."""
-    while True:
-        cmd = input("('exit' to quit)~# ")
-        if cmd == "exit":
-            if session["logged_in"]:
-                logout()
-            break
-        else:
-            try:
-                cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
-            except UsageError as e:
-                click.echo(f"Error: {e}. Please enter a valid command.")
-            except SystemExit:
-                pass
-
+    try:
+        while True:
+            cmd = input("('exit' to quit)~# ")
+            if cmd == "exit":
+                if session["logged_in"]:
+                    logout()
+                break
+            else:
+                try:
+                    cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
+                except UsageError as e:
+                    click.echo(f"Error: {e}. Please enter a valid command.")
+                except SystemExit:
+                    pass
+    except KeyboardInterrupt:
+        # Handle Ctrl+C to logout
+        click.echo("\nSession interrupted. Clearing session and exiting......")
+        session["logged_in"] = False
+        session["username"] = None
+        
 @cli.command()
 @click.argument('username')
 @click.option('--password', prompt='Enter your password: ', hide_input=True)
