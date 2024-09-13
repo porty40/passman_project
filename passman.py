@@ -62,6 +62,11 @@ def require_login(func):
             click.echo("No user is currently logged in. Please log in first.")
             ctx.exit()  # Exit the command, preventing further execution or prompts
         return func(*args, **kwargs)
+
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    wrapper.__module__ = func.__module__
+
     return wrapper
 
 @click.group()
