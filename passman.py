@@ -80,7 +80,7 @@ def cli() -> None:
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
-def add_slot(slot_name: str, slot_content: str, password: str) -> None:
+def slot_add(slot_name: str, slot_content: str, password: str) -> None:
     """Creates a slot in the vault. (requires login)"""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
@@ -125,8 +125,8 @@ def add_slot(slot_name: str, slot_content: str, password: str) -> None:
 @require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
-def del_slot(slot_name: str, password: str) -> None:
-    """Creates a slot in the vault. (requires login)"""
+def slot_del(slot_name: str, password: str) -> None:
+    """Deletes a slot in the vault. (requires login)"""
     pass
 
 @cli.command()
@@ -134,14 +134,14 @@ def del_slot(slot_name: str, password: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
-def show_slot(slot: str, password: str) -> None:
+def slot_show(slot: str, password: str) -> None:
     """Reveals specified slot or copies it to the clipboard. (requires login)"""
     pass
 
 @cli.command()
 @require_login
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
-def list_slots(password: str) -> None:
+def slot_list(password: str) -> None:
     """Lists all the slots of the vault. (requires login)"""
     pass
 
