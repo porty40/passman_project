@@ -20,7 +20,6 @@ log_req = ["pass-reset", "slot-add", "slot-del", "slot-show", "slot-list"]
 
 users_dir = "./users"
 accounts = 'acc.json'
-user_path = f'{users_dir}/{session["username"]}'
 
 salt_len = 16
 key_len = 32
@@ -91,6 +90,7 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
             users = json.load(file)
         ph.verify(users[session["username"]], password)
 
+        user_path = f'{users_dir}/{session["username"]}'
         if not os.path.exists(user_path):
             os.makedirs(user_path)
 
