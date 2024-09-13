@@ -54,6 +54,16 @@ def derive_key(password: str, salt: bytes) -> bytes:
         key_len
     )
 
+def require_login(func):
+    """Decorator to ensure the user is logged in before executing the command."""
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
+        if not session.get("logged_in"):
+            click.echo("No user is currently logged in. Please log in first.")
+            ctx.exit()  # Exit the command, preventing further execution or prompts
+        return func(*args, **kwargs)
+    return wrapper
+
 @click.group()
 def cli() -> None:
     """A simple command line password manager."""
@@ -61,14 +71,12 @@ def cli() -> None:
 
 #password slot operations section
 @cli.command()
+@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def add_slot(slot_name: str, slot_content: str, password: str) -> None:
     """Creates a slot in the vault."""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
@@ -109,34 +117,28 @@ def add_slot(slot_name: str, slot_content: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
+@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
 def del_slot(slot_name: str, password: str) -> None:
     """Creates a slot in the vault."""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
-    username = session["username"]
+    pass
 
 @cli.command()
+@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
 def show_slot(slot: str, password: str) -> None:
     """Reveals specified slot or copies it to the clipboard."""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
-    username = session["username"]
+    pass
 
 @cli.command()
+@require_login
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def list_slots(password: str) -> None:
     """Lists all the slots of the vault."""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
-    username = session["username"]
+    pass
 
 #user/ master password operations section
 @cli.command()
@@ -176,14 +178,12 @@ def user_set(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
+@require_login
 @click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
     """Resets the master password for the current user."""
     accounts = 'acc.json'
-    if not session["logged_in"]:
-        click.echo("You must log in first.")
-        return
     username = session["username"]
     try:
         if not os.path.exists(accounts):
@@ -236,12 +236,9 @@ def login(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
+@require_login
 def logout() -> None:
     """Logout"""
-    if not session["logged_in"]:
-        click.echo("No user is currently logged in.")
-        return
-
     session["logged_in"] = False
     click.echo(f"User '{session['username']}' logged out successfully.")
     session["username"] = ""
