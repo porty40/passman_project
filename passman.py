@@ -16,6 +16,8 @@ ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
 session = {"logged_in": False, "username": ""}
 
+log_req = ["pass_reset", "slot_add", "slot_del", "slot_show", "slot_list"]
+
 users_dir = "./users"
 accounts = 'acc.json'
 user_path = f'{users_dir}/{session["username"]}'
@@ -252,6 +254,8 @@ def terminal():
                 if session["logged_in"]:
                     logout()
                 break
+            if cmd in log_req and session['username'] == "":
+                click.echo(f"Login required for '{cmd}' execution.")
             else:
                 try:
                     cli.main(args=cmd.split(), prog_name="passman", standalone_mode=False)
