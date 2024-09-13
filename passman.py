@@ -2,6 +2,7 @@
 import click
 from click.exceptions import UsageError
 import os
+import sys
 import json
 import base64
 import re
@@ -132,8 +133,8 @@ def slot_del(slot_name: str, password: str) -> None:
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password', hide_input=True)
-@click.option('--clip', is_flag=True, help='Copy the revealed slot to the clipboard')
-def slot_show(slot_name: str, password: str, clip: bool) -> None:
+@click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
+def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
     """Reveals specified slot or copies it to the clipboard."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
@@ -165,11 +166,13 @@ def slot_show(slot_name: str, password: str, clip: bool) -> None:
         decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
         slot_content = decrypted_data.decode()
 
-        if clip:
-            pyperclip.copy(slot_content)
-            click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
-        else:
+        if no_clip:
             click.echo(f"Slot '{slot_name}' content: {slot_content}")
+        else:
+            sys.stderr = open(os.devnull, 'w')
+            pyperclip.copy(slot_content)
+            sys.stderr = sys.__stderr__
+            click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
 
     except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
         click.echo(f"Error: {e}")
