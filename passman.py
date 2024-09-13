@@ -2,13 +2,12 @@
 import click
 from click.exceptions import UsageError
 import os
-import sys
 import json
 import base64
 import re
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-import pyperclip
+import clipboard
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import hashlib
@@ -169,9 +168,7 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
         if no_clip:
             click.echo(f"Slot '{slot_name}' content: {slot_content}")
         else:
-            sys.stderr = open(os.devnull, 'w')
-            pyperclip.copy(slot_content)
-            sys.stderr = sys.__stderr__
+            clipboard.copy(slot_content)
             click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
 
     except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
