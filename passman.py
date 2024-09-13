@@ -7,7 +7,7 @@ import base64
 import re
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-#import pyperclip
+import pyperclip
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import hashlib
@@ -77,9 +77,9 @@ def cli() -> None:
 
 #password slot operations section
 @cli.command()
-@click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
-@click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
-@click.option('--password', prompt='Enter the master password: ', hide_input=True)
+@click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
+@click.option('--slot-content', prompt='Enter the content of the slot', help='Specify the content of the slot', hide_input=True)
+@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_add(slot_name: str, slot_content: str, password: str) -> None:
     """Creates a slot in the vault."""
     if not is_valid_name(slot_name):
@@ -123,22 +123,59 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
-@click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
-@click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
+@click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
+@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def slot_del(slot_name: str, password: str) -> None:
     """Deletes a slot in the vault."""
     pass
 
 @cli.command()
-@click.option('--slot-name', prompt='Enter the slot name: ', help='Access specified slot')
-@click.option('--password', prompt='Enter the master password: ', hide_input=True)
-@click.option('--clip', help='Copy the revealed slot to the clipboard')
-def slot_show(slot: str, password: str) -> None:
+@click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
+@click.option('--password', prompt='Enter the master password', hide_input=True)
+@click.option('--clip', is_flag=True, help='Copy the revealed slot to the clipboard')
+def slot_show(slot_name: str, password: str, clip: bool) -> None:
     """Reveals specified slot or copies it to the clipboard."""
-    pass
+    if not is_valid_name(slot_name):
+        click.echo(inv_slot_name)
+        return
+    try:
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+        ph.verify(users[session["username"]], password)
+
+        user_path = f'{users_dir}/{session["username"]}'
+        vault_path = f'{user_path}/vault.json'
+
+        with open(vault_path, 'r') as file:
+            slots = json.load(file)
+        if slot_name not in slots:
+            click.echo(f"Slot '{slot_name}' does not exist.")
+            return
+
+        slot_path = f'{user_path}/{slot_name}.bin'
+
+        with open(slot_path, 'rb') as file:
+            iv = file.read(16)
+            encrypted_data = file.read()
+
+        slot_salt = base64.b64decode(slots[slot_name])
+        dec_key = derive_key(password, slot_salt)
+
+        cipher = AES.new(dec_key, AES.MODE_CBC, iv)
+        decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
+        slot_content = decrypted_data.decode()
+
+        if clip:
+            pyperclip.copy(slot_content)
+            click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
+        else:
+            click.echo(f"Slot '{slot_name}' content: {slot_content}")
+
+    except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
+        click.echo(f"Error: {e}")
 
 @cli.command()
-@click.option('--password', prompt='Enter the master password: ', hide_input=True)
+@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_list(password: str) -> None:
     """Lists all the slots of the vault."""
     pass
@@ -146,7 +183,7 @@ def slot_list(password: str) -> None:
 #user/ master password operations section
 @cli.command()
 @click.argument('username')
-@click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
+@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def user_set(username: str, password: str) -> None:
     """Sets up a user account (username: master password)."""
     if session["logged_in"]:
@@ -181,11 +218,10 @@ def user_set(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
-@click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
-@click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
+@click.option('--old-password', prompt='Enter the old master password', hide_input=True)
+@click.option('--new-password', prompt='Enter the new master password', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
     """Resets the master password for the current user."""
-    accounts = 'acc.json'
     username = session["username"]
     try:
         if not os.path.exists(accounts):
@@ -215,7 +251,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 #assistive functions (login/logout/session_terminal)
 @cli.command()
 @click.argument('username')
-@click.option('--password', prompt='Enter your password: ', hide_input=True)
+@click.option('--password', prompt='Enter your password', hide_input=True)
 def login(username: str, password: str) -> None:
     """Login"""
     try:
