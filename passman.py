@@ -63,9 +63,9 @@ def require_login(func):
             ctx.exit()  # Exit the command, preventing further execution or prompts
         return func(*args, **kwargs)
 
-    #wrapper.__name__ = func.__name__
-    #wrapper.__doc__ = func.__doc__
-    #wrapper.__module__ = func.__module__
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    wrapper.__module__ = func.__module__
 
     return wrapper
 
@@ -81,7 +81,7 @@ def cli() -> None:
 @click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def add_slot(slot_name: str, slot_content: str, password: str) -> None:
-    """Creates a slot in the vault."""
+    """Creates a slot in the vault. (requires login)"""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
@@ -126,7 +126,7 @@ def add_slot(slot_name: str, slot_content: str, password: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
 def del_slot(slot_name: str, password: str) -> None:
-    """Creates a slot in the vault."""
+    """Creates a slot in the vault. (requires login)"""
     pass
 
 @cli.command()
@@ -135,14 +135,14 @@ def del_slot(slot_name: str, password: str) -> None:
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
 def show_slot(slot: str, password: str) -> None:
-    """Reveals specified slot or copies it to the clipboard."""
+    """Reveals specified slot or copies it to the clipboard. (requires login)"""
     pass
 
 @cli.command()
 @require_login
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def list_slots(password: str) -> None:
-    """Lists all the slots of the vault."""
+    """Lists all the slots of the vault. (requires login)"""
     pass
 
 #user/ master password operations section
@@ -187,7 +187,7 @@ def user_set(username: str, password: str) -> None:
 @click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
-    """Resets the master password for the current user."""
+    """Resets the master password for the current user. (requires login)"""
     accounts = 'acc.json'
     username = session["username"]
     try:
