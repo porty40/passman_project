@@ -81,7 +81,7 @@ def cli() -> None:
 @click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def slot_add(slot_name: str, slot_content: str, password: str) -> None:
-    """Creates a slot in the vault. (requires login)"""
+    """Creates a slot in the vault."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
@@ -118,7 +118,7 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
 
         click.echo(f"Slot '{slot_name}' created successfully.")
 
-    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+    except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
         click.echo(f"Error: {e}")
 
 @cli.command()
@@ -126,7 +126,7 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
 def slot_del(slot_name: str, password: str) -> None:
-    """Deletes a slot in the vault. (requires login)"""
+    """Deletes a slot in the vault."""
     pass
 
 @cli.command()
@@ -135,14 +135,14 @@ def slot_del(slot_name: str, password: str) -> None:
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
 def slot_show(slot: str, password: str) -> None:
-    """Reveals specified slot or copies it to the clipboard. (requires login)"""
+    """Reveals specified slot or copies it to the clipboard."""
     pass
 
 @cli.command()
 @require_login
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def slot_list(password: str) -> None:
-    """Lists all the slots of the vault. (requires login)"""
+    """Lists all the slots of the vault."""
     pass
 
 #user/ master password operations section
@@ -179,7 +179,7 @@ def user_set(username: str, password: str) -> None:
         os.makedirs(user_path)
 
         click.echo(f"User '{username}' has been added successfully.")
-    except (IOError, json.JSONDecodeError) as e:
+    except (IOError, json.JSONDecodeError, KeyboardInterrupt) as e:
         click.echo(f"Error: {e}")
 
 @cli.command()
@@ -187,7 +187,7 @@ def user_set(username: str, password: str) -> None:
 @click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
-    """Resets the master password for the current user. (requires login)"""
+    """Resets the master password for the current user."""
     accounts = 'acc.json'
     username = session["username"]
     try:
@@ -212,7 +212,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
             json.dump(users, file, indent=4)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
-    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+    except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
         click.echo(f"Error: {e}")
 
 #assistive functions (login/logout/session_terminal)
@@ -237,7 +237,7 @@ def login(username: str, password: str) -> None:
         session["logged_in"] = True
         session["username"] = username
         click.echo(f"User '{username}' logged in successfully.")
-    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+    except (IOError, json.JSONDecodeError, VerifyMismatchError, KeyboardInterrupt) as e:
         click.echo(f"Error: {e}")
 
 @cli.command()
