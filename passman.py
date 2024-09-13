@@ -67,7 +67,7 @@ def require_login(func):
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
 
-    return wrapper
+    return click.command(hidden=True)(wrapper)
 
 @click.group()
 def cli() -> None:
