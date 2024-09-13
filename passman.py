@@ -16,7 +16,7 @@ ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
 session = {"logged_in": False, "username": ""}
 
-log_req = ["pass_reset", "slot_add", "slot_del", "slot_show", "slot_list"]
+log_req = ["pass-reset", "slot-add", "slot-del", "slot-show", "slot-list"]
 
 users_dir = "./users"
 accounts = 'acc.json'
