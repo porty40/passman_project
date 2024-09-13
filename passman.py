@@ -63,11 +63,11 @@ def require_login(func):
             ctx.exit()  # Exit the command, preventing further execution or prompts
         return func(*args, **kwargs)
 
-    wrapper.__name__ = func.__name__
-    wrapper.__doc__ = func.__doc__
-    wrapper.__module__ = func.__module__
+    #wrapper.__name__ = func.__name__
+    #wrapper.__doc__ = func.__doc__
+    #wrapper.__module__ = func.__module__
 
-    return click.command(hidden=True)(wrapper)
+    return wrapper
 
 @click.group()
 def cli() -> None:
