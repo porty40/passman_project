@@ -123,7 +123,6 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
         click.echo(f"Error: {e}")
     except KeyboardInterrupt:
         click.echo("Process interrupted by the user.")
-        raise click.exceptions.Abort() from None
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
@@ -178,7 +177,6 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
         click.echo(f"Error: {e}")
     except KeyboardInterrupt:
         click.echo("Process interrupted by the user.")
-        raise click.exceptions.Abort() from None
 
 @cli.command()
 @click.option('--password', prompt='Enter the master password', hide_input=True)
@@ -224,7 +222,6 @@ def user_set(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
     except KeyboardInterrupt:
         click.echo("Process interrupted by the user.")
-        raise click.exceptions.Abort() from None
 
 @cli.command()
 @click.option('--old-password', prompt='Enter the old master password', hide_input=True)
@@ -258,7 +255,6 @@ def pass_reset(old_password: str, new_password: str) -> None:
         click.echo(f"Error: {e}")
     except KeyboardInterrupt:
         click.echo("Process interrupted by the user.")
-        raise click.exceptions.Abort() from None
 
 #assistive functions (login/logout/session_terminal)
 @cli.command()
@@ -286,7 +282,6 @@ def login(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
     except KeyboardInterrupt:
         click.echo("Process interrupted by the user.")
-        raise click.exceptions.Abort() from None
 
 @cli.command()
 def logout() -> None:
