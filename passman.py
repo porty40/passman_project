@@ -9,6 +9,8 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 #import pyperclip
 from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+import hashlib
 
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
@@ -20,6 +22,7 @@ user_path = f'{users_dir}/{session["username"]}'
 
 salt_len = 16
 key_len = 32
+iter = 100000
 blk_size = AES.block_size
 
 inv_usr_name = "Invalid username format:\n\tUsername should contain from 2 to 10\n\talphanumerical characters without spaces."
@@ -43,7 +46,13 @@ def sanitize(input: str) -> str:
 '''
 
 def derive_key(password: str, salt: bytes) -> bytes:
-    pass
+    return hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode(),
+        salt,
+        iter,
+        key_len
+    )
 
 @click.group()
 def cli() -> None:
@@ -73,16 +82,28 @@ def add_slot(slot_name: str, slot_content: str, password: str) -> None:
 
         vault_path = f'{user_path}/vault.json'
         slot_path = f'{user_path}/{slot_name}.bin'
-        slots = {}
 
         slot_salt = os.urandom(salt_len)
         enc_key = derive_key(password, slot_salt)
 
-        ### FUNC ++
+        cipher = AES.new(enc_key, AES.MODE_CBC)
+        padded_data = pad(slot_content.encode(), blk_size)
+        encrypted_data = cipher.encrypt(padded_data)
 
-        slots[slot_name] = slot_salt
-        with open(user_path, 'w') as file:
-            json.dump(slots, vault_path, indent=4)
+        with open(slot_path, 'wb') as file:
+            file.write(cipher.iv)  # Write the IV to the file first
+            file.write(encrypted_data)
+
+        slots = {}
+        if os.path.exists(vault_path):
+            with open(vault_path, 'r') as file:
+                slots = json.load(file)
+        slots[slot_name] = base64.b64encode(slot_salt).decode('utf-8')
+
+        with open(vault_path, 'w') as file:
+            json.dump(slots, file, indent=4)
+
+        click.echo(f"Slot '{slot_name}' created successfully.")
 
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
