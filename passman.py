@@ -54,7 +54,7 @@ def derive_key(password: str, salt: bytes) -> bytes:
         key_len
     )
 
-def require_login(func):
+'''def require_login(func):
     """Decorator to ensure the user is logged in before executing the command."""
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
@@ -67,7 +67,7 @@ def require_login(func):
     wrapper.__doc__ = func.__doc__
     wrapper.__module__ = func.__module__
 
-    return wrapper
+    return wrapper'''
 
 @click.group()
 def cli() -> None:
@@ -76,7 +76,6 @@ def cli() -> None:
 
 #password slot operations section
 @cli.command()
-@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot: ', help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
@@ -122,7 +121,6 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
-@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True, confirmation_prompt=True)
 def slot_del(slot_name: str, password: str) -> None:
@@ -130,7 +128,6 @@ def slot_del(slot_name: str, password: str) -> None:
     pass
 
 @cli.command()
-@require_login
 @click.option('--slot-name', prompt='Enter the slot name: ', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 @click.option('--clip', help='Copy the revealed slot to the clipboard')
@@ -139,7 +136,6 @@ def slot_show(slot: str, password: str) -> None:
     pass
 
 @cli.command()
-@require_login
 @click.option('--password', prompt='Enter the master password: ', hide_input=True)
 def slot_list(password: str) -> None:
     """Lists all the slots of the vault."""
@@ -183,7 +179,6 @@ def user_set(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
-@require_login
 @click.option('--old-password', prompt='Enter the old master password: ', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password: ', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
@@ -241,7 +236,6 @@ def login(username: str, password: str) -> None:
         click.echo(f"Error: {e}")
 
 @cli.command()
-@require_login
 def logout() -> None:
     """Logout"""
     session["logged_in"] = False
