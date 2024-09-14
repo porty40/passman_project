@@ -78,7 +78,8 @@ def cli() -> None:
 #password slot operations section
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
-@click.option('--slot-content', prompt='Enter the content of the slot', help='Specify the content of the slot', hide_input=True)
+@click.option('--slot-content', prompt='Enter the content of the slot',
+              help='Specify the content of the slot', hide_input=True)
 @click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_add(slot_name: str, slot_content: str, password: str) -> None:
     """Creates a slot in the vault."""
@@ -127,7 +128,37 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def slot_del(slot_name: str, password: str) -> None:
     """Deletes a slot in the vault."""
-    pass
+    if not is_valid_name(slot_name):
+        click.echo(inv_slot_name)
+        return
+    try:
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+        ph.verify(users[session["username"]], password)
+
+        user_path = f'{users_dir}/{session["username"]}'
+        vault_path = f'{user_path}/vault.json'
+
+        with open(vault_path, 'r') as file:
+            slots = json.load(file)
+
+        if slot_name not in slots:
+            click.echo(f"Slot '{slot_name}' does not exist.")
+            return
+
+        slot_path = f'{user_path}/{slot_name}.bin'
+
+        if os.path.exists(f"{slot_path}"):
+            os.remove(f"{slot_path}")
+        slots.pop(slot_name)
+
+        with open(vault_path, 'w') as file:
+            json.dump(slots, file, indent=4)
+
+        click.echo(f"Slot '{slot_name}' deleted successfully.")
+
+    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+        click.echo(f"Error: {e}")
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
@@ -148,6 +179,7 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
 
         with open(vault_path, 'r') as file:
             slots = json.load(file)
+
         if slot_name not in slots:
             click.echo(f"Slot '{slot_name}' does not exist.")
             return
@@ -178,7 +210,23 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
 @click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_list(password: str) -> None:
     """Lists all the slots of the vault."""
-    pass
+    try:
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+        ph.verify(users[session["username"]], password)
+
+        user_path = f'{users_dir}/{session["username"]}'
+        vault_path = f'{user_path}/vault.json'
+
+        with open(vault_path, 'r') as file:
+            slots = json.load(file)
+
+        click.echo(f"{session['username']} VAULT:")
+        for slot in slots:
+            click.echo(f"  ->  {slot}")
+
+    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+        click.echo(f"Error: {e}")
 
 #user/ master password operations section
 @cli.command()
