@@ -232,6 +232,9 @@ def slot_list(password: str) -> None:
             slots = json.load(file)
 
         click.echo(f"{session['username']} VAULT:")
+        if not slots:
+            click.echo(f"  < Empty >")
+            return
         for slot in slots:
             click.echo(f"  ->  {slot}")
 
@@ -241,7 +244,7 @@ def slot_list(password: str) -> None:
 
 # user/ master password operations section
 @cli.command()
-@click.argument('username')
+@click.option('--username', prompt='Enter the username')
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def user_set(username: str, password: str) -> None:
     """Sets up a user account (username: master password)."""
@@ -274,6 +277,41 @@ def user_set(username: str, password: str) -> None:
 
         click.echo(f"User '{username}' has been added successfully.")
     except (IOError, json.JSONDecodeError) as e:
+        click.echo(f"Error: {e}")
+
+
+@cli.command()
+@click.option('--username', prompt='Enter the username')
+@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
+def user_del(username: str, password: str) -> None:
+    try:
+        if not os.path.exists(accounts):
+            click.echo(f"'{accounts}' file is missing")
+            return
+
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+
+        if username not in users:
+            click.echo(f"User '{username}' does not exist.")
+            return
+
+        if ph.verify(users[username], password):
+            user_path = f'{users_dir}/{username}'
+            vault_path = f'{user_path}/vault.json'
+
+            with open(vault_path, 'r') as file:
+                slots = json.load(file)
+            for slot in slots:
+                slot_path = f"{user_path}/{slot}.bin"
+                os.remove(slot_path)
+            os.remove(vault_path)
+            os.rmdir(user_path)
+        else:
+            click.echo("Old password does not match.")
+            return
+        click.echo(f"'{username}' records deleted successfully.")
+    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
 
@@ -311,7 +349,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
 # assistive functions (login/logout/session_terminal)
 @cli.command()
-@click.argument('username')
+@click.option('--username', prompt='Enter the username')
 @click.option('--password', prompt='Enter your password', hide_input=True)
 def login(username: str, password: str) -> None:
     """Login"""
