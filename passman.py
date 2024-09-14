@@ -23,20 +23,23 @@ accounts = 'acc.json'
 
 salt_len = 16
 key_len = 32
-iter = 100000
+iterations = 100000
 blk_size = AES.block_size
 
 inv_usr_name = "Invalid username format:\n\tUsername should contain from 2 to 10\n\talphanumerical characters without spaces."
 inv_pass = "Invalid password format:\n\tPassword should contain a minimum of 8 characters,\n\tincluding at least one uppercase letter,\n\tone lowercase letter, one digit,\n\tand one special character (@#$!%*?&)."
 inv_slot_name = "Invalid slot name format:\n\tSlot name should contain from 2 to 10\n\talphanumerical characters without spaces."
 
+
 def is_valid_name(username: str) -> bool:
     rx = r'^([a-zA-Z\d]{2,10})$'
     return bool(re.fullmatch(rx, username.strip()))
 
+
 def is_valid_password(password: str) -> bool:
     rx = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$!%*?&])[A-Za-z\d@#$!%*?&]{8,16}$'
     return bool(re.fullmatch(rx, password.strip()))
+
 
 '''
 def sanitize(input: str) -> str:
@@ -46,14 +49,16 @@ def sanitize(input: str) -> str:
     return sanitized
 '''
 
+
 def derive_key(password: str, salt: bytes) -> bytes:
     return hashlib.pbkdf2_hmac(
         'sha256',
         password.encode(),
         salt,
-        iter,
+        iterations,
         key_len
     )
+
 
 '''def require_login(func):
     """Decorator to ensure the user is logged in before executing the command."""
@@ -70,12 +75,14 @@ def derive_key(password: str, salt: bytes) -> bytes:
 
     return wrapper'''
 
+
 @click.group()
 def cli() -> None:
     """A simple command line password manager."""
     pass
 
-#password slot operations section
+
+# password slot operations section
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot',
@@ -123,6 +130,7 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
+
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
@@ -159,6 +167,7 @@ def slot_del(slot_name: str, password: str) -> None:
 
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
+
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
@@ -206,6 +215,7 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
+
 @cli.command()
 @click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_list(password: str) -> None:
@@ -228,7 +238,8 @@ def slot_list(password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
-#user/ master password operations section
+
+# user/ master password operations section
 @cli.command()
 @click.argument('username')
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
@@ -265,6 +276,7 @@ def user_set(username: str, password: str) -> None:
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"Error: {e}")
 
+
 @cli.command()
 @click.option('--old-password', prompt='Enter the old master password', hide_input=True)
 @click.option('--new-password', prompt='Enter the new master password', hide_input=True, confirmation_prompt=True)
@@ -296,7 +308,8 @@ def pass_reset(old_password: str, new_password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
-#assistive functions (login/logout/session_terminal)
+
+# assistive functions (login/logout/session_terminal)
 @cli.command()
 @click.argument('username')
 @click.option('--password', prompt='Enter your password', hide_input=True)
@@ -321,12 +334,14 @@ def login(username: str, password: str) -> None:
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
+
 @cli.command()
 def logout() -> None:
     """Logout"""
     session["logged_in"] = False
     click.echo(f"User '{session['username']}' logged out successfully.")
     session["username"] = ""
+
 
 def terminal():
     """Starts the session."""
@@ -354,6 +369,7 @@ def terminal():
         click.echo("\nSession interrupted. Clearing session and exiting......")
         session["logged_in"] = False
         session["username"] = ""
+
 
 if __name__ == '__main__':
     terminal()
