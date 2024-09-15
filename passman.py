@@ -310,6 +310,7 @@ def user_del(username: str, password: str) -> None:
         else:
             click.echo("Old password does not match.")
             return
+        logout()
         click.echo(f"'{username}' records deleted successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
