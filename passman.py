@@ -275,6 +275,11 @@ def user_set(username: str, password: str) -> None:
         user_path = f'{users_dir}/{username}'
         os.makedirs(user_path)
 
+        vault = {}
+        vault_path = f'{user_path}/vault.json'
+        with open(vault_path, 'w') as file:
+            json.dump(vault, file, indent=4)
+
         click.echo(f"User '{username}' has been added successfully.")
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"Error: {e}")
