@@ -6,11 +6,12 @@ import json
 import base64
 import re
 from argon2 import PasswordHasher
+from argon2.low_level import hash_secret_raw, Type
 from argon2.exceptions import VerifyMismatchError
 import clipboard
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-import hashlib
+
 
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
@@ -23,7 +24,6 @@ accounts = 'acc.json'
 
 salt_len = 16
 key_len = 32
-iterations = 100000
 blk_size = AES.block_size
 
 inv_usr_name = "Invalid username format:\n\tUsername should contain from 2 to 10\n\talphanumerical characters without spaces."
@@ -51,12 +51,14 @@ def sanitize(input: str) -> str:
 
 
 def derive_key(password: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac(
-        'sha256',
-        password.encode(),
-        salt,
-        iterations,
-        key_len
+    return hash_secret_raw(
+        secret=password.encode(),     # Password as bytes
+        salt=salt,                      # Salt as bytes
+        time_cost=2,                    # Time cost (number of iterations)
+        memory_cost=102400,             # Memory cost (in KiB)
+        parallelism=8,                  # Degree of parallelism (threads)
+        hash_len=key_len,               # Desired length of the output key
+        type=Type.I                     # Argon2 type: I for Argon2i, ID for hybrid, or D for Argon2d
     )
 
 
@@ -289,6 +291,7 @@ def user_set(username: str, password: str) -> None:
 @click.option('--username', prompt='Enter the username')
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def user_del(username: str, password: str) -> None:
+    """Deletes all user records."""
     try:
         if not os.path.exists(accounts):
             click.echo(f"'{accounts}' file is missing")
@@ -348,6 +351,53 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
         with open(accounts, 'w') as file:
             json.dump(users, file, indent=4)
+
+        user_path = f'{users_dir}/{username}'
+        vault_path = f'{user_path}/vault.json'
+
+        if not os.path.exists(vault_path):
+            click.echo(f"Vault file is missing for user '{username}'")
+            return
+
+        # Load and decrypt existing slots with the old password
+        with open(vault_path, 'r') as file:
+            slots = json.load(file)
+
+        decrypted_slots = {}
+        for slot_name, encoded_salt in slots.items():
+            slot_path = f'{user_path}/{slot_name}.bin'
+
+            # Decrypt slot content using old password
+            with open(slot_path, 'rb') as slot_file:
+                iv = slot_file.read(16)
+                encrypted_data = slot_file.read()
+
+            old_salt = base64.b64decode(encoded_salt)
+            old_key = derive_key(old_password, old_salt)
+
+            cipher = AES.new(old_key, AES.MODE_CBC, iv)
+            decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
+            decrypted_slots[slot_name] = decrypted_data.decode()
+
+            # Re-encrypt all the slots with the new password
+        for slot_name, slot_content in decrypted_slots.items():
+            new_salt = os.urandom(salt_len)  # Generate new salt for the new password
+            new_key = derive_key(new_password, new_salt)
+
+            cipher = AES.new(new_key, AES.MODE_CBC)
+            padded_data = pad(slot_content.encode(), blk_size)
+            encrypted_data = cipher.encrypt(padded_data)
+
+            # Save new encrypted slot data
+            slot_path = f'{user_path}/{slot_name}.bin'
+            with open(slot_path, 'wb') as slot_file:
+                slot_file.write(cipher.iv)
+                slot_file.write(encrypted_data)
+
+            slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
+
+        with open(vault_path, 'w') as file:
+            json.dump(slots, file, indent=4)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
