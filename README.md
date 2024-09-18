@@ -1,2 +1,2 @@
 # passman_project
-Secure Password Manager
+CLI-Based Password Manager

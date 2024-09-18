@@ -17,7 +17,7 @@ ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
 session = {"logged_in": False, "username": ""}
 
-log_req = ["pass-reset", "slot-add", "slot-del", "slot-show", "slot-list"]
+log_req = ["pass-reset", "slot-add", "slot-edit", "slot-del", "slot-show", "slot-list"]
 
 users_dir = "./users"
 accounts = 'acc.json'
@@ -128,6 +128,64 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
             json.dump(slots, file, indent=4)
 
         click.echo(f"Slot '{slot_name}' created successfully.")
+
+    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+        click.echo(f"Error: {e}")
+
+
+@cli.command()
+@click.option('--slot-name', prompt='Enter the slot name', help='Specify the slot to edit')
+@click.option('--new-content', prompt='Enter the new content of the slot', help='Specify the new content of the slot',
+              hide_input=True)
+@click.option('--password', prompt='Enter the master password', hide_input=True)
+def slot_edit(slot_name: str, new_content: str, password: str) -> None:
+    """Edits the content of an existing slot in the vault, creating a new salt."""
+    if not is_valid_name(slot_name):
+        click.echo(inv_slot_name)
+        return
+
+    try:
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+
+        ph.verify(users[session["username"]], password)
+
+        user_path = f'{users_dir}/{session["username"]}'
+        vault_path = f'{user_path}/vault.json'
+
+        if not os.path.exists(vault_path):
+            click.echo("Vault file not found.")
+            return
+
+        with open(vault_path, 'r') as file:
+            slots = json.load(file)
+
+        if slot_name not in slots:
+            click.echo(f"Slot '{slot_name}' does not exist.")
+            return
+
+        new_salt = os.urandom(salt_len)
+        enc_key = derive_key(password, new_salt)
+
+        cipher = AES.new(enc_key, AES.MODE_CBC)
+
+        # Encrypt new content with new key
+        padded_data = pad(new_content.encode(), blk_size)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        # Write new encrypted slot content
+        slot_path = f'{user_path}/{slot_name}.bin'
+        with open(slot_path, 'wb') as file:
+            file.write(cipher.iv)
+            file.write(encrypted_data)
+
+        # Update the vault file
+        slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
+
+        with open(vault_path, 'w') as file:
+            json.dump(slots, file, indent=4)
+
+        click.echo(f"Slot '{slot_name}' content updated successfully.")
 
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
