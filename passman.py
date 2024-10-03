@@ -511,8 +511,9 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
             slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
 
-        encrypt_vault(slots, enckexp["maspass"], vault_path)
         enckexp["maspass"] = new_password
+        encrypt_vault(slots, enckexp["maspass"], vault_path)
+
         click.echo(f"Master password for '{username}' has been changed successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
