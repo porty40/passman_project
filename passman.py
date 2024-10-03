@@ -1,6 +1,7 @@
 # PORTY40 PROPERTY
 import click
 from click.exceptions import UsageError
+from expiringdict import ExpiringDict
 import os
 import json
 import base64
@@ -12,8 +13,11 @@ import clipboard
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
+
+enckexp = ExpiringDict(max_age_seconds=120, max_len=1)
+enckexp["maspass"] = None
+ms = b'02d0086a7342f2b47db970833b55a39f'
 
 session = {"logged_in": False, "username": ""}
 
@@ -41,15 +45,6 @@ def is_valid_password(password: str) -> bool:
     return bool(re.fullmatch(rx, password.strip()))
 
 
-'''
-def sanitize(input: str) -> str:
-    allowed = r'[^a-zA-Z0-9@#$!%*?&]'
-    sanitized = input.strip()
-    sanitized = re.sub(allowed, '', sanitized)
-    return sanitized
-'''
-
-
 def derive_key(password: str, salt: bytes) -> bytes:
     return hash_secret_raw(
         secret=password.encode(),     # Password as bytes
@@ -62,20 +57,51 @@ def derive_key(password: str, salt: bytes) -> bytes:
     )
 
 
-'''def require_login(func):
-    """Decorator to ensure the user is logged in before executing the command."""
-    @click.pass_context
-    def wrapper(ctx, *args, **kwargs):
-        if not session.get("logged_in"):
-            click.echo("No user is currently logged in. Please log in first.")
-            ctx.exit()  # Exit the command, preventing further execution or prompts
-        return func(*args, **kwargs)
+def encrypt_vault(vault_data: dict, master_password: str, vault_path: str) -> None:
+    try:
+        key = derive_key(master_password, ms)
 
-    wrapper.__name__ = func.__name__
-    wrapper.__doc__ = func.__doc__
-    wrapper.__module__ = func.__module__
+        vault_json = json.dumps(vault_data).encode()
 
-    return wrapper'''
+        cipher = AES.new(key, AES.MODE_CBC)
+        padded_data = pad(vault_json, blk_size)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        with open(vault_path, 'wb') as file:
+            file.write(cipher.iv)
+            file.write(encrypted_data)
+
+    except Exception as e:
+        click.echo(f"Error encrypting the vault: {e}")
+
+
+def decrypt_vault(master_password: str, vault_path: str) -> dict:
+    try:
+        key = derive_key(master_password, ms)
+
+        with open(vault_path, 'rb') as file:
+            iv = file.read(16)
+            encrypted_data = file.read()
+
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
+
+        return json.loads(decrypted_data.decode('utf-8'))
+
+    except Exception as e:
+        click.echo(f"Error decrypting the vault: {e}")
+        return {}
+
+
+def get_pass_in() -> None:
+    password = str(input("Your password has timed out!\nType it in again to proceed: "))
+    try:
+        with open(accounts, 'r') as file:
+            users = json.load(file)
+        ph.verify(users[session["username"]], password)
+        enckexp["maspass"] == password
+    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+        click.echo(f"Error: {e}")
 
 
 @click.group()
@@ -89,16 +115,19 @@ def cli() -> None:
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot',
               help='Specify the content of the slot', hide_input=True)
-@click.option('--password', prompt='Enter the master password', hide_input=True)
-def slot_add(slot_name: str, slot_content: str, password: str) -> None:
+#@click.option('--password', prompt='Enter the master password', hide_input=True)
+def slot_add(slot_name: str, slot_content: str) -> None:
     """Creates a slot in the vault."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
+    if enckexp["maspass"] is None:
+        get_pass_in()
+
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], password)
+        ph.verify(users[session["username"]], enckexp["maspass"])
 
         user_path = f'{users_dir}/{session["username"]}'
         if not os.path.exists(user_path):
@@ -107,8 +136,19 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
         vault_path = f'{user_path}/vault.json'
         slot_path = f'{user_path}/{slot_name}.bin'
 
+        # Decrypt the vault before loading
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
+
+        if slot_name in slots:
+            click.echo(f"Slot '{slot_name}' already exists.")
+            return
+
+        # Create and encrypt the slot
         slot_salt = os.urandom(salt_len)
-        enc_key = derive_key(password, slot_salt)
+        enc_key = derive_key(enckexp["maspass"], slot_salt)
 
         cipher = AES.new(enc_key, AES.MODE_CBC)
         padded_data = pad(slot_content.encode(), blk_size)
@@ -118,14 +158,11 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
             file.write(cipher.iv)  # Write the IV to the file first
             file.write(encrypted_data)
 
-        slots = {}
-        if os.path.exists(vault_path):
-            with open(vault_path, 'r') as file:
-                slots = json.load(file)
+        # Update vault with the new slot
         slots[slot_name] = base64.b64encode(slot_salt).decode('utf-8')
 
-        with open(vault_path, 'w') as file:
-            json.dump(slots, file, indent=4)
+        # Encrypt the vault after updating
+        encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' created successfully.")
 
@@ -137,18 +174,18 @@ def slot_add(slot_name: str, slot_content: str, password: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name', help='Specify the slot to edit')
 @click.option('--new-content', prompt='Enter the new content of the slot', help='Specify the new content of the slot',
               hide_input=True)
-@click.option('--password', prompt='Enter the master password', hide_input=True)
-def slot_edit(slot_name: str, new_content: str, password: str) -> None:
+#@click.option('--password', prompt='Enter the master password', hide_input=True)
+def slot_edit(slot_name: str, new_content: str) -> None:
     """Edits the content of an existing slot in the vault, creating a new salt."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-
+    if enckexp["maspass"] is None:
+        get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-
-        ph.verify(users[session["username"]], password)
+        ph.verify(users[session["username"]], enckexp["maspass"])
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
@@ -157,15 +194,17 @@ def slot_edit(slot_name: str, new_content: str, password: str) -> None:
             click.echo("Vault file not found.")
             return
 
-        with open(vault_path, 'r') as file:
-            slots = json.load(file)
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
 
         if slot_name not in slots:
             click.echo(f"Slot '{slot_name}' does not exist.")
             return
 
         new_salt = os.urandom(salt_len)
-        enc_key = derive_key(password, new_salt)
+        enc_key = derive_key(enckexp["maspass"], new_salt)
 
         cipher = AES.new(enc_key, AES.MODE_CBC)
 
@@ -182,8 +221,7 @@ def slot_edit(slot_name: str, new_content: str, password: str) -> None:
         # Update the vault file
         slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
 
-        with open(vault_path, 'w') as file:
-            json.dump(slots, file, indent=4)
+        encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' content updated successfully.")
 
@@ -193,22 +231,26 @@ def slot_edit(slot_name: str, new_content: str, password: str) -> None:
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
-@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
-def slot_del(slot_name: str, password: str) -> None:
+#@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
+def slot_del(slot_name: str) -> None:
     """Deletes a slot in the vault."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
+    if enckexp["maspass"] is None:
+        get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], password)
+        ph.verify(users[session["username"]], enckexp["maspass"])
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
-        with open(vault_path, 'r') as file:
-            slots = json.load(file)
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
 
         if slot_name not in slots:
             click.echo(f"Slot '{slot_name}' does not exist.")
@@ -232,22 +274,26 @@ def slot_del(slot_name: str, password: str) -> None:
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
 @click.option('--password', prompt='Enter the master password', hide_input=True)
-@click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
-def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
+#@click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
+def slot_show(slot_name: str, no_clip: bool) -> None:
     """Reveals specified slot or copies it to the clipboard."""
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
+    if enckexp["maspass"] is None:
+        get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], password)
+        ph.verify(users[session["username"]], enckexp["maspass"])
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
-        with open(vault_path, 'r') as file:
-            slots = json.load(file)
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
 
         if slot_name not in slots:
             click.echo(f"Slot '{slot_name}' does not exist.")
@@ -260,7 +306,7 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
             encrypted_data = file.read()
 
         slot_salt = base64.b64decode(slots[slot_name])
-        dec_key = derive_key(password, slot_salt)
+        dec_key = derive_key(enckexp["maspass"], slot_salt)
 
         cipher = AES.new(dec_key, AES.MODE_CBC, iv)
         decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
@@ -277,19 +323,23 @@ def slot_show(slot_name: str, password: str, no_clip: bool) -> None:
 
 
 @cli.command()
-@click.option('--password', prompt='Enter the master password', hide_input=True)
-def slot_list(password: str) -> None:
+#@click.option('--password', prompt='Enter the master password', hide_input=True)
+def slot_list() -> None:
     """Lists all the slots of the vault."""
+    if enckexp["maspass"] is None:
+        get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], password)
+        ph.verify(users[session["username"]], enckexp["maspass"])
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
-        with open(vault_path, 'r') as file:
-            slots = json.load(file)
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
 
         click.echo(f"{session['username']} VAULT:")
         if not slots:
@@ -337,8 +387,14 @@ def user_set(username: str, password: str) -> None:
 
         vault = {}
         vault_path = f'{user_path}/vault.json'
-        with open(vault_path, 'w') as file:
-            json.dump(vault, file, indent=4)
+
+        cipher = AES.new(derive_key(password, ms), AES.MODE_CBC)
+        padded_data = pad(json.dumps(vault).encode(), blk_size)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        with open(vault_path, 'wb') as file:
+            file.write(cipher.iv)
+            file.write(encrypted_data)
 
         click.echo(f"User '{username}' has been added successfully.")
     except (IOError, json.JSONDecodeError) as e:
@@ -483,6 +539,7 @@ def login(username: str, password: str) -> None:
         ph.verify(users[username], password)
         session["logged_in"] = True
         session["username"] = username
+        enckexp["maspass"] == password
         click.echo(f"User '{username}' logged in successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
@@ -492,7 +549,7 @@ def login(username: str, password: str) -> None:
 def logout() -> None:
     """Logout"""
     session["logged_in"] = False
-    click.echo(f"User '{session['username']}' logged out successfully.")
+    #click.echo(f"User '{session['username']}' logged out successfully.")
     session["username"] = ""
 
 
