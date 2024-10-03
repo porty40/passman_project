@@ -99,7 +99,7 @@ def get_pass_in() -> None:
         with open(accounts, 'r') as file:
             users = json.load(file)
         ph.verify(users[session["username"]], password)
-        enckexp["maspass"] == password
+        enckexp["maspass"] = password
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -121,7 +121,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if enckexp["maspass"] is None:
+    if not enckexp["maspass"]:
         get_pass_in()
 
     try:
@@ -180,7 +180,7 @@ def slot_edit(slot_name: str, new_content: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if enckexp["maspass"] is None:
+    if not enckexp["maspass"]:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
@@ -237,7 +237,7 @@ def slot_del(slot_name: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if enckexp["maspass"] is None:
+    if not enckexp["maspass"]:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
@@ -279,7 +279,7 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if enckexp["maspass"] is None:
+    if not enckexp["maspass"]:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
@@ -325,7 +325,7 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
 #@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_list() -> None:
     """Lists all the slots of the vault."""
-    if enckexp["maspass"] is None:
+    if not enckexp["maspass"]:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
