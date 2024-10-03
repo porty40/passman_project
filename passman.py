@@ -272,8 +272,8 @@ def slot_del(slot_name: str) -> None:
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
-@click.option('--password', prompt='Enter the master password', hide_input=True)
-#@click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
+#@click.option('--password', prompt='Enter the master password', hide_input=True)
+@click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
 def slot_show(slot_name: str, no_clip: bool) -> None:
     """Reveals specified slot or copies it to the clipboard."""
     if not is_valid_name(slot_name):
