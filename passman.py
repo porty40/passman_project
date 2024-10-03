@@ -16,7 +16,7 @@ from Crypto.Util.Padding import pad, unpad
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
 enckexp = ExpiringDict(max_age_seconds=120, max_len=1)
-enckexp["maspass"] = None
+#enckexp["maspass"] = ""
 ms = b'02d0086a7342f2b47db970833b55a39f'
 
 session = {"logged_in": False, "username": ""}
