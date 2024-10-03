@@ -262,8 +262,7 @@ def slot_del(slot_name: str) -> None:
             os.remove(f"{slot_path}")
         slots.pop(slot_name)
 
-        with open(vault_path, 'w') as file:
-            json.dump(slots, file, indent=4)
+        encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' deleted successfully.")
 
@@ -474,8 +473,10 @@ def pass_reset(old_password: str, new_password: str) -> None:
             return
 
         # Load and decrypt existing slots with the old password
-        with open(vault_path, 'r') as file:
-            slots = json.load(file)
+        if os.path.exists(vault_path):
+            slots = decrypt_vault(enckexp["maspass"], vault_path)
+        else:
+            slots = {}
 
         decrypted_slots = {}
         for slot_name, encoded_salt in slots.items():
@@ -510,8 +511,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
             slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
 
-        with open(vault_path, 'w') as file:
-            json.dump(slots, file, indent=4)
+        encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
