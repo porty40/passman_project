@@ -539,7 +539,7 @@ def login(username: str, password: str) -> None:
         ph.verify(users[username], password)
         session["logged_in"] = True
         session["username"] = username
-        enckexp["maspass"] == password
+        enckexp["maspass"] = password
         click.echo(f"User '{username}' logged in successfully.")
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
