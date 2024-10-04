@@ -1,4 +1,6 @@
 # PORTY40 PROPERTY
+import logging
+from logging.handlers import SysLogHandler
 import click
 from click.exceptions import UsageError
 from expiringdict import ExpiringDict
@@ -13,9 +15,14 @@ import clipboard
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
+logger = logging.getLogger('logger')
+logger.setLevel(logging.DEBUG)
+handler = logging.handlers.SysLogHandler(address='/dev/log')
+logger.addHandler(handler)
+
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
-enckexp = ExpiringDict(max_age_seconds=120, max_len=1)
+enckexp = ExpiringDict(max_age_seconds=120, max_len=2)
 enckexp["maspass"] = ""
 ms = b'02d0086a7342f2b47db970833b55a39f'
 
@@ -53,7 +60,7 @@ def derive_key(password: str, salt: bytes) -> bytes:
         memory_cost=102400,             # Memory cost (in KiB)
         parallelism=8,                  # Degree of parallelism (threads)
         hash_len=key_len,               # Desired length of the output key
-        type=Type.I                     # Argon2 type: I for Argon2i, ID for hybrid, or D for Argon2d
+        type=Type.ID                    # Argon2 type: I for Argon2i, ID for hybrid, or D for Argon2d
     )
 
 
@@ -102,6 +109,7 @@ def get_pass_in() -> None:
         enckexp["maspass"] = password
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
+    logger.info(f'User \'{session["username"]}\' has reset password timeout.')
 
 
 @click.group()
@@ -115,7 +123,6 @@ def cli() -> None:
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
 @click.option('--slot-content', prompt='Enter the content of the slot',
               help='Specify the content of the slot', hide_input=True)
-#@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_add(slot_name: str, slot_content: str) -> None:
     """Creates a slot in the vault."""
     if not is_valid_name(slot_name):
@@ -165,7 +172,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' created successfully.")
-
+        logger.info(f'User \'{session["username"]}\' has added slot to the vault.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -174,7 +181,6 @@ def slot_add(slot_name: str, slot_content: str) -> None:
 @click.option('--slot-name', prompt='Enter the slot name', help='Specify the slot to edit')
 @click.option('--new-content', prompt='Enter the new content of the slot', help='Specify the new content of the slot',
               hide_input=True)
-#@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_edit(slot_name: str, new_content: str) -> None:
     """Edits the content of an existing slot in the vault, creating a new salt."""
     if not is_valid_name(slot_name):
@@ -224,14 +230,13 @@ def slot_edit(slot_name: str, new_content: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' content updated successfully.")
-
+        logger.info(f'User \'{session["username"]}\' has edited the slot.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Create specified slot')
-#@click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def slot_del(slot_name: str) -> None:
     """Deletes a slot in the vault."""
     if not is_valid_name(slot_name):
@@ -265,14 +270,13 @@ def slot_del(slot_name: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' deleted successfully.")
-
+        logger.info(f'User \'{session["username"]}\' has deleted the slot.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
 
 @cli.command()
 @click.option('--slot-name', prompt='Enter the slot name', help='Access specified slot')
-#@click.option('--password', prompt='Enter the master password', hide_input=True)
 @click.option('--no-clip', is_flag=True, help='Copy the revealed slot to the clipboard')
 def slot_show(slot_name: str, no_clip: bool) -> None:
     """Reveals specified slot or copies it to the clipboard."""
@@ -313,6 +317,7 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
 
         if no_clip:
             click.echo(f"Slot '{slot_name}' content: {slot_content}")
+            logger.info(f'User \'{session["username"]}\' has used --no-clip option.')
         else:
             clipboard.copy(slot_content)
             click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
@@ -322,7 +327,6 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
 
 
 @cli.command()
-#@click.option('--password', prompt='Enter the master password', hide_input=True)
 def slot_list() -> None:
     """Lists all the slots of the vault."""
     if not enckexp["maspass"]:
@@ -346,7 +350,7 @@ def slot_list() -> None:
             return
         for slot in slots:
             click.echo(f"  ->  {slot}")
-
+        logger.info(f'User \'{session["username"]}\' has listed the vault.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -396,6 +400,7 @@ def user_set(username: str, password: str) -> None:
             file.write(encrypted_data)
 
         click.echo(f"User '{username}' has been added successfully.")
+        logger.info(f'User \'{session["username"]}\' has been created.')
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"Error: {e}")
 
@@ -431,6 +436,7 @@ def user_del(username: str, password: str) -> None:
         else:
             click.echo("Old password does not match.")
             return
+        logger.info(f'User \'{session["username"]}\' has been deleted.')
         session["logged_in"] = False
         session["username"] = ""
         click.echo(f"'{username}' records deleted successfully.")
@@ -515,6 +521,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
+        logger.info(f'Password for user \'{session["username"]}\' has been changed.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -542,6 +549,7 @@ def login(username: str, password: str) -> None:
         session["username"] = username
         enckexp["maspass"] = password
         click.echo(f"User '{username}' logged in successfully.")
+        logger.info(f'User \'{session["username"]}\' has logged in.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -550,13 +558,14 @@ def login(username: str, password: str) -> None:
 def logout() -> None:
     """Logout"""
     session["logged_in"] = False
-    #click.echo(f"User '{session['username']}' logged out successfully.")
+    logger.info(f'User \'{session["username"]}\' has logged out.')
     session["username"] = ""
     enckexp["maspass"] = ""
 
 
 def terminal():
     """Starts the session."""
+    logger.info(f'Passman session has started.')
     click.echo("Type 'exit' to quit.")
     try:
         while True:
@@ -564,6 +573,7 @@ def terminal():
             if cmd == "exit":
                 if session["logged_in"]:
                     logout()
+                logger.info(f'Passman session has exited.')
                 break
             if cmd in log_req and session['username'] == "":
                 click.echo(f"Login required for '{cmd}' execution.")
@@ -579,6 +589,7 @@ def terminal():
     except KeyboardInterrupt:
         # Handle Ctrl+C to logout
         click.echo("\nSession interrupted. Clearing session and exiting......")
+        logger.info(f'Passman session has been interrupted.')
         session["logged_in"] = False
         session["username"] = ""
 
