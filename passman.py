@@ -1,6 +1,5 @@
 # PORTY40 PROPERTY
-import logging
-from logging.handlers import SysLogHandler
+import syslog
 import click
 from click.exceptions import UsageError
 from expiringdict import ExpiringDict
@@ -14,11 +13,6 @@ from argon2.exceptions import VerifyMismatchError
 import clipboard
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-
-logger = logging.getLogger('logger')
-logger.setLevel(logging.DEBUG)
-handler = logging.handlers.SysLogHandler(address='/dev/log')
-logger.addHandler(handler)
 
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
@@ -109,7 +103,7 @@ def get_pass_in() -> None:
         enckexp["maspass"] = password
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
-    logger.info(f'User \'{session["username"]}\' has reset password timeout.')
+    syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has reset password timeout.')
 
 
 @click.group()
@@ -172,7 +166,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' created successfully.")
-        logger.info(f'User \'{session["username"]}\' has added slot to the vault.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has added slot to the vault.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -230,7 +224,7 @@ def slot_edit(slot_name: str, new_content: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' content updated successfully.")
-        logger.info(f'User \'{session["username"]}\' has edited the slot.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has edited the slot.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -270,7 +264,7 @@ def slot_del(slot_name: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Slot '{slot_name}' deleted successfully.")
-        logger.info(f'User \'{session["username"]}\' has deleted the slot.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has deleted the slot.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -317,7 +311,7 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
 
         if no_clip:
             click.echo(f"Slot '{slot_name}' content: {slot_content}")
-            logger.info(f'User \'{session["username"]}\' has used --no-clip option.')
+            syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has used --no-clip option.')
         else:
             clipboard.copy(slot_content)
             click.echo(f"Slot '{slot_name}' has been copied to the clipboard.")
@@ -350,7 +344,7 @@ def slot_list() -> None:
             return
         for slot in slots:
             click.echo(f"  ->  {slot}")
-        logger.info(f'User \'{session["username"]}\' has listed the vault.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has listed the vault.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -400,7 +394,7 @@ def user_set(username: str, password: str) -> None:
             file.write(encrypted_data)
 
         click.echo(f"User '{username}' has been added successfully.")
-        logger.info(f'User \'{session["username"]}\' has been created.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has been created.')
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"Error: {e}")
 
@@ -436,7 +430,7 @@ def user_del(username: str, password: str) -> None:
         else:
             click.echo("Old password does not match.")
             return
-        logger.info(f'User \'{session["username"]}\' has been deleted.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has been deleted.')
         session["logged_in"] = False
         session["username"] = ""
         click.echo(f"'{username}' records deleted successfully.")
@@ -521,7 +515,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
         encrypt_vault(slots, enckexp["maspass"], vault_path)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
-        logger.info(f'Password for user \'{session["username"]}\' has been changed.')
+        syslog.syslog(syslog.LOG_INFO, f'Password for user \'{session["username"]}\' has been changed.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -549,7 +543,7 @@ def login(username: str, password: str) -> None:
         session["username"] = username
         enckexp["maspass"] = password
         click.echo(f"User '{username}' logged in successfully.")
-        logger.info(f'User \'{session["username"]}\' has logged in.')
+        syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has logged in.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
 
@@ -558,14 +552,14 @@ def login(username: str, password: str) -> None:
 def logout() -> None:
     """Logout"""
     session["logged_in"] = False
-    logger.info(f'User \'{session["username"]}\' has logged out.')
+    syslog.syslog(syslog.LOG_INFO, f'User \'{session["username"]}\' has logged out.')
     session["username"] = ""
     enckexp["maspass"] = ""
 
 
 def terminal():
     """Starts the session."""
-    logger.info(f'Passman session has started.')
+    syslog.syslog(syslog.LOG_INFO, f'Passman session has started.')
     click.echo("Type 'exit' to quit.")
     try:
         while True:
@@ -573,7 +567,7 @@ def terminal():
             if cmd == "exit":
                 if session["logged_in"]:
                     logout()
-                logger.info(f'Passman session has exited.')
+                syslog.syslog(syslog.LOG_INFO, f'Passman session has exited.')
                 break
             if cmd in log_req and session['username'] == "":
                 click.echo(f"Login required for '{cmd}' execution.")
@@ -589,7 +583,7 @@ def terminal():
     except KeyboardInterrupt:
         # Handle Ctrl+C to logout
         click.echo("\nSession interrupted. Clearing session and exiting......")
-        logger.info(f'Passman session has been interrupted.')
+        syslog.syslog(syslog.LOG_INFO, f'Passman session has been interrupted.')
         session["logged_in"] = False
         session["username"] = ""
 
