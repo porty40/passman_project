@@ -1,6 +1,7 @@
 # PORTY40 PROPERTY
 import logging
 import logging.handlers
+from syslog import LOG_LOCAL4
 import click
 from click.exceptions import UsageError
 from expiringdict import ExpiringDict
@@ -35,7 +36,7 @@ def initiate_logger(log_level=logging.INFO, syslog=True, file=False):
         logger.addHandler(fh)
 
     if syslog:
-        sh = logging.handlers.SysLogHandler(address='/dev/log')
+        sh = logging.handlers.SysLogHandler(address='/dev/log', facility=LOG_LOCAL4)
         sh.setLevel(log_level)
         sf = logging.Formatter('%(name)s: %(message)s')
         sh.setFormatter(sf)
