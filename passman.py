@@ -137,14 +137,15 @@ def decrypt_vault(master_password: str, vault_path: str) -> dict:
 
 def get_pass_in() -> None:
     global maspass
-    password = str(input("Your password has timed out!\nType it in again to proceed: "))
+    password = click.prompt("Your password has timed out!\nType it in again to proceed", hide_input=True)
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
         ph.verify(users[session["username"]], password)
         maspass = password
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
-        click.echo(f"Error: {e}")
+        pass
+        #click.echo(f"Error: {e}")
     log.info(f'User \'{session["username"]}\' has reset password timeout.')
 
 
