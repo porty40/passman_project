@@ -4,7 +4,8 @@ import logging.handlers
 from syslog import LOG_LOCAL4
 import click
 from click.exceptions import UsageError
-from expiringdict import ExpiringDict
+import threading
+import time
 import os
 import json
 import base64
@@ -49,9 +50,16 @@ log = initiate_logger()
 
 ph = PasswordHasher(time_cost=1, memory_cost=512, parallelism=4)
 
-enckexp = ExpiringDict(max_age_seconds=120, max_len=2)
-enckexp["maspass"] = ""
+maspass = ""
 ms = b'02d0086a7342f2b47db970833b55a39f'
+
+
+def reset_variable():
+    global maspass
+    while True:
+        time.sleep(120)  # Wait for 120 seconds
+        maspass = ""  # Reset to default value
+
 
 session = {"logged_in": False, "username": ""}
 
@@ -128,12 +136,13 @@ def decrypt_vault(master_password: str, vault_path: str) -> dict:
 
 
 def get_pass_in() -> None:
+    global maspass
     password = str(input("Your password has timed out!\nType it in again to proceed: "))
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
         ph.verify(users[session["username"]], password)
-        enckexp["maspass"] = password
+        maspass = password
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
     log.info(f'User \'{session["username"]}\' has reset password timeout.')
@@ -155,13 +164,13 @@ def slot_add(slot_name: str, slot_content: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if not enckexp["maspass"]:
+    if not maspass:
         get_pass_in()
 
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], enckexp["maspass"])
+        ph.verify(users[session["username"]], maspass)
 
         user_path = f'{users_dir}/{session["username"]}'
         if not os.path.exists(user_path):
@@ -172,7 +181,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
 
         # Decrypt the vault before loading
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -182,7 +191,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
 
         # Create and encrypt the slot
         slot_salt = os.urandom(salt_len)
-        enc_key = derive_key(enckexp["maspass"], slot_salt)
+        enc_key = derive_key(maspass, slot_salt)
 
         cipher = AES.new(enc_key, AES.MODE_CBC)
         padded_data = pad(slot_content.encode(), blk_size)
@@ -196,7 +205,7 @@ def slot_add(slot_name: str, slot_content: str) -> None:
         slots[slot_name] = base64.b64encode(slot_salt).decode('utf-8')
 
         # Encrypt the vault after updating
-        encrypt_vault(slots, enckexp["maspass"], vault_path)
+        encrypt_vault(slots, maspass, vault_path)
 
         click.echo(f"Slot '{slot_name}' created successfully.")
         log.info(f'User \'{session["username"]}\' has added slot to the vault.')
@@ -213,12 +222,12 @@ def slot_edit(slot_name: str, new_content: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if not enckexp["maspass"]:
+    if not maspass:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], enckexp["maspass"])
+        ph.verify(users[session["username"]], maspass)
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
@@ -228,7 +237,7 @@ def slot_edit(slot_name: str, new_content: str) -> None:
             return
 
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -237,7 +246,7 @@ def slot_edit(slot_name: str, new_content: str) -> None:
             return
 
         new_salt = os.urandom(salt_len)
-        enc_key = derive_key(enckexp["maspass"], new_salt)
+        enc_key = derive_key(maspass, new_salt)
 
         cipher = AES.new(enc_key, AES.MODE_CBC)
 
@@ -254,7 +263,7 @@ def slot_edit(slot_name: str, new_content: str) -> None:
         # Update the vault file
         slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
 
-        encrypt_vault(slots, enckexp["maspass"], vault_path)
+        encrypt_vault(slots, maspass, vault_path)
 
         click.echo(f"Slot '{slot_name}' content updated successfully.")
         log.info(f'User \'{session["username"]}\' has edited the slot.')
@@ -269,18 +278,18 @@ def slot_del(slot_name: str) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if not enckexp["maspass"]:
+    if not maspass:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], enckexp["maspass"])
+        ph.verify(users[session["username"]], maspass)
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -294,7 +303,7 @@ def slot_del(slot_name: str) -> None:
             os.remove(f"{slot_path}")
         slots.pop(slot_name)
 
-        encrypt_vault(slots, enckexp["maspass"], vault_path)
+        encrypt_vault(slots, maspass, vault_path)
 
         click.echo(f"Slot '{slot_name}' deleted successfully.")
         log.info(f'User \'{session["username"]}\' has deleted the slot.')
@@ -310,18 +319,18 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
-    if not enckexp["maspass"]:
+    if not maspass:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], enckexp["maspass"])
+        ph.verify(users[session["username"]], maspass)
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -336,7 +345,7 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
             encrypted_data = file.read()
 
         slot_salt = base64.b64decode(slots[slot_name])
-        dec_key = derive_key(enckexp["maspass"], slot_salt)
+        dec_key = derive_key(maspass, slot_salt)
 
         cipher = AES.new(dec_key, AES.MODE_CBC, iv)
         decrypted_data = unpad(cipher.decrypt(encrypted_data), blk_size)
@@ -356,18 +365,18 @@ def slot_show(slot_name: str, no_clip: bool) -> None:
 @cli.command()
 def slot_list() -> None:
     """Lists all the slots of the vault."""
-    if not enckexp["maspass"]:
+    if not maspass:
         get_pass_in()
     try:
         with open(accounts, 'r') as file:
             users = json.load(file)
-        ph.verify(users[session["username"]], enckexp["maspass"])
+        ph.verify(users[session["username"]], maspass)
 
         user_path = f'{users_dir}/{session["username"]}'
         vault_path = f'{user_path}/vault.json'
 
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -427,7 +436,7 @@ def user_set(username: str, password: str) -> None:
             file.write(encrypted_data)
 
         click.echo(f"User '{username}' has been added successfully.")
-        log.info(f'User \'{session["username"]}\' has been created.')
+        log.info(f"User '{username}' has been created.")
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"Error: {e}")
 
@@ -476,6 +485,7 @@ def user_del(username: str, password: str) -> None:
 @click.option('--new-password', prompt='Enter the new master password', hide_input=True, confirmation_prompt=True)
 def pass_reset(old_password: str, new_password: str) -> None:
     """Resets the master password for the current user."""
+    global maspass
     username = session["username"]
     try:
         if not os.path.exists(accounts):
@@ -507,7 +517,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
         # Load and decrypt existing slots with the old password
         if os.path.exists(vault_path):
-            slots = decrypt_vault(enckexp["maspass"], vault_path)
+            slots = decrypt_vault(maspass, vault_path)
         else:
             slots = {}
 
@@ -544,8 +554,8 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
             slots[slot_name] = base64.b64encode(new_salt).decode('utf-8')
 
-        enckexp["maspass"] = new_password
-        encrypt_vault(slots, enckexp["maspass"], vault_path)
+        maspass = new_password
+        encrypt_vault(slots, maspass, vault_path)
 
         click.echo(f"Master password for '{username}' has been changed successfully.")
         log.info(f'Password for user \'{session["username"]}\' has been changed.')
@@ -559,6 +569,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 @click.option('--password', prompt='Enter your password', hide_input=True)
 def login(username: str, password: str) -> None:
     """Login"""
+    global maspass
     try:
         if not os.path.exists(accounts):
             click.echo("No users available. Please create a user first.")
@@ -574,7 +585,7 @@ def login(username: str, password: str) -> None:
         ph.verify(users[username], password)
         session["logged_in"] = True
         session["username"] = username
-        enckexp["maspass"] = password
+        maspass = password
         click.echo(f"User '{username}' logged in successfully.")
         log.info(f'User \'{session["username"]}\' has logged in.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
@@ -584,10 +595,11 @@ def login(username: str, password: str) -> None:
 @cli.command()
 def logout() -> None:
     """Logout"""
+    global maspass
     session["logged_in"] = False
     log.info(f'User \'{session["username"]}\' has logged out.')
     session["username"] = ""
-    enckexp["maspass"] = ""
+    maspass = ""
 
 
 def terminal():
@@ -595,6 +607,9 @@ def terminal():
     log.info(f'Passman session has started.')
     click.echo("Type 'exit' to quit.")
     try:
+        thread = threading.Thread(target=reset_variable)
+        thread.daemon = True
+        thread.start()
         while True:
             cmd = input(f"[{session['username']}]~# ")
             if cmd == "exit":
