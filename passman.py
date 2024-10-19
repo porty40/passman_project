@@ -517,7 +517,7 @@ def pass_reset(old_password: str, new_password: str) -> None:
 
         # Load and decrypt existing slots with the old password
         if os.path.exists(vault_path):
-            slots = decrypt_vault(maspass, vault_path)
+            slots = decrypt_vault(old_password, vault_path)
         else:
             slots = {}
 
