@@ -39,7 +39,7 @@ cd /path/to/venv
 
 ## 7. Activate the Virtual Environment
   ```bash
-  source ./bin/activate
+  source ../bin/activate
   ```
 
 ## 8. Install Dependencies
