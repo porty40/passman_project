@@ -143,9 +143,8 @@ def get_pass_in() -> None:
             users = json.load(file)
         ph.verify(users[session["username"]], password)
         maspass = password
-    except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
+    except (IOError, json.JSONDecodeError, VerifyMismatchError):
         pass
-        #click.echo(f"Error: {e}")
     log.info(f'User \'{session["username"]}\' has reset password timeout.')
 
 
