@@ -462,8 +462,11 @@ def user_del(username: str, password: str) -> None:
             user_path = f'{users_dir}/{username}'
             vault_path = f'{user_path}/vault.json'
 
-            with open(vault_path, 'r') as file:
-                slots = json.load(file)
+            if os.path.exists(vault_path):
+                slots = decrypt_vault(maspass, vault_path)
+            else:
+                slots = {}
+
             for slot in slots:
                 slot_path = f"{user_path}/{slot}.bin"
                 os.remove(slot_path)
