@@ -472,6 +472,9 @@ def user_del(username: str, password: str) -> None:
                 os.remove(slot_path)
             os.remove(vault_path)
             os.rmdir(user_path)
+            users.pop(username)
+            with open(accounts, 'w') as file:
+                json.dump(users, file, indent=4)
         else:
             click.echo("Old password does not match.")
             return
