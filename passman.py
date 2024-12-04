@@ -161,6 +161,7 @@ def cli() -> None:
               help='Specify the content of the slot', hide_input=True)
 def slot_add(slot_name: str, slot_content: str) -> None:
     """Creates a slot in the vault."""
+    slot_name = slot_name.strip()
     if not is_valid_name(slot_name):
         click.echo(inv_slot_name)
         return
@@ -385,7 +386,7 @@ def slot_list() -> None:
             click.echo(f"  < Empty >")
             return
         for slot in slots:
-            click.echo(f"  ->  {slot}")
+            click.echo(f"  ->  '{slot}'")
         log.info(f'User \'{session["username"]}\' has listed the vault.')
     except (IOError, json.JSONDecodeError, VerifyMismatchError) as e:
         click.echo(f"Error: {e}")
@@ -397,6 +398,7 @@ def slot_list() -> None:
 @click.option('--password', prompt='Enter the master password', hide_input=True, confirmation_prompt=True)
 def user_set(username: str, password: str) -> None:
     """Sets up a user account (username: master password)."""
+    username = username.strip()
     if session["logged_in"]:
         click.echo("Log out to create new user account.")
         return
